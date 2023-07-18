@@ -1,0 +1,108 @@
+version: '3.5'
+
+services:
+  postgres:
+    container_name: postgres_container
+    image: postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      PGDATA: /data/postgres
+    volumes:
+       - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - postgres
+    restart: unless-stopped
+
+  pgadmin:
+    container_name: pgadmin_container
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+       - pgadmin:/data/postgres/pgadmin
+
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    networks:
+      - postgres
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - 8000:80
+    volumes:
+      - ./:/var/www
+      - ./docker-compose/nginx:/etc/nginx/conf.d/
+    networks:
+      - postgres    
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins-lts
+    privileged: true
+    user: root
+    ports:
+      - 8081:8080
+      - 50000:50000
+    volumes:
+      - ~/jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/local/bin/docker:/usr/local/bin/docker
+      
+    networks:
+      - postgres      
+      
+  mysql:
+    image: 'mysql:8.0'
+    container_name: myapp-mysql
+    working_dir: /var/www/myapp
+    volumes:
+        - ../mysql:/var/lib/mysql
+        - ../mysql-files:/var/lib/mysql-files
+        - ../cakephp:/var/www/myapp
+        - ./mysql/my.cnf:/etc/mysql/my.cnf
+    ports:
+      - "8106:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=myapp
+      - MYSQL_USER=myapp
+      - MYSQL_PASSWORD=myapp     
+    networks:
+      - postgres    
+      
+  web:
+    container_name: web
+    image: php:8.0-apache
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    restart: always    
+
+    ports:
+      - "3000:80"
+    volumes:
+      - ./www:/var/www/html
+
+    networks:
+      - postgres
+
+networks:
+  postgres:
+    driver: bridge
+      
+volumes:
+    postgres:
+    pgadmin:
+    jenkins:    
+    mysql:
+    nginx:
+    web:
